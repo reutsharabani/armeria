@@ -74,6 +74,15 @@ class DocServiceEmptyServicesTest {
                 final AggregatedHttpResponse schemas = client.get("/docs/schemas.json");
                 assertThat(schemas.status()).isEqualTo(HttpStatus.OK);
                 assertThatJson(schemas.contentUtf8()).isEqualTo("{}");
+
+                final AggregatedHttpResponse openApi = client.get("/docs/openapi.json");
+                assertThat(openApi.status()).isEqualTo(HttpStatus.OK);
+                assertThatJson(openApi.contentUtf8()).node("openapi").isEqualTo("3.0.3");
+                assertThatJson(openApi.contentUtf8()).node("paths").isEqualTo("{}");
+
+                final AggregatedHttpResponse swagger = client.get("/docs/swagger.html");
+                assertThat(swagger.status()).isEqualTo(HttpStatus.OK);
+                assertThat(swagger.contentUtf8()).contains("openapi.json");
                 assertThat(appender.list).noneMatch(event -> event.getLevel().isGreaterOrEqual(Level.WARN));
             }
         } finally {
