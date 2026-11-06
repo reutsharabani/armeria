@@ -310,3 +310,18 @@ To enable it, you have to add the armeria annotation processor to your project:
       `}</CodeBlock>
   </TabItem>
 </Tabs>
+
+## OpenAPI
+
+[DocService](type) also serves an [OpenAPI 3.0](https://spec.openapis.org/oas/v3.0.3) document generated
+from the same service specification as the documentation UI:
+
+- http://127.0.0.1:8080/docs/openapi.json
+- http://127.0.0.1:8080/docs/swagger.html
+
+gRPC, Thrift and annotated services are included. A gRPC method is exported as `POST` on its route, for
+example `/package.Service/Method`, and the protobuf message is the JSON body. HTTP/JSON transcoding routes
+are included with their HTTP method and path parameters when transcoding is enabled. Field names are the
+names already stored on the service specification, which for protobuf are the proto field names.
+Streaming RPCs, security schemes and exception status codes are left out, because the service specification
+does not carry them. The Swagger UI page loads its scripts from jsDelivr.

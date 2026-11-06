@@ -21,6 +21,7 @@ import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static java.util.Objects.requireNonNull;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
@@ -92,6 +93,10 @@ import com.linecorp.armeria.server.file.MediaTypeResolver;
  * <p>{@link DocService} looks up the {@link DocServicePlugin}s available in the current JVM
  * using Java SPI (Service Provider Interface). The {@link DocServicePlugin} implementations will
  * generate {@link ServiceSpecification}s for the {@link Service}s they support.
+ *
+ * <p>The same specification is also available as an
+ * <a href="https://spec.openapis.org/oas/v3.0.3">OpenAPI 3.0</a> document at
+ * {@code openapi.json}, with a Swagger UI page at {@code swagger.html}.
  *
  * @see DocServiceBuilder#include(DocServiceFilter)
  * @see DocServiceBuilder#exclude(DocServiceFilter)
@@ -247,8 +252,11 @@ public final class DocService extends SimpleDecoratingHttpService {
         private static final String VERSIONS_PATH = "/versions.json";
         private static final String SPECIFICATION_PATH = "/specification.json";
         private static final String SCHEMAS_PATH = "/schemas.json";
+        private static final String OPENAPI_PATH = "/openapi.json";
+        private static final String SWAGGER_PATH = "/swagger.html";
         private static final Set<String> TARGET_PATHS = ImmutableSet.of(VERSIONS_PATH, SPECIFICATION_PATH,
-                                                                        SCHEMAS_PATH);
+                                                                        SCHEMAS_PATH, OPENAPI_PATH,
+                                                                        SWAGGER_PATH);
         private static final CompletableFuture<AggregatedHttpFile> loadFailedFuture =
                 UnmodifiableFuture.exceptionallyCompletedFuture(
                         new IllegalStateException("File load not triggered"));
@@ -304,6 +312,10 @@ public final class DocService extends SimpleDecoratingHttpService {
                 return loadSpecifications(serviceSpecificationFuture);
             } else if (SCHEMAS_PATH.equals(path)) {
                 return loadSchemas(serviceSpecificationFuture);
+            } else if (OPENAPI_PATH.equals(path)) {
+                return loadOpenApi(serviceSpecificationFuture);
+            } else if (SWAGGER_PATH.equals(path)) {
+                return loadSwaggerUi();
             } else {
                 throw new Error(); // Should never reach here.
             }
@@ -362,6 +374,26 @@ public final class DocService extends SimpleDecoratingHttpService {
                     return toFile("{}".getBytes(), MediaType.JSON_UTF_8);
                 }
             }));
+        }
+
+        private CompletableFuture<AggregatedHttpFile> loadOpenApi(
+                CompletableFuture<ServiceSpecification> specificationFuture) {
+            return files.computeIfAbsent(OPENAPI_PATH, key -> specificationFuture.thenApply(spec -> {
+                try {
+                    final byte[] content = jsonMapper.writerWithDefaultPrettyPrinter()
+                                                     .writeValueAsBytes(OpenApiGenerator.generate(spec));
+                    return toFile(content, MediaType.JSON_UTF_8);
+                } catch (JsonProcessingException e) {
+                    logger.warn("Failed to generate OpenAPI specification:", e);
+                    return toFile("{}".getBytes(StandardCharsets.UTF_8), MediaType.JSON_UTF_8);
+                }
+            }));
+        }
+
+        private CompletableFuture<AggregatedHttpFile> loadSwaggerUi() {
+            return files.computeIfAbsent(SWAGGER_PATH, key -> UnmodifiableFuture.completedFuture(
+                    toFile(OpenApiGenerator.swaggerUiHtml().getBytes(StandardCharsets.UTF_8),
+                           MediaType.HTML_UTF_8)));
         }
 
         private static AggregatedHttpFile toFile(byte[] content, MediaType mediaType) {
